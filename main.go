@@ -6,10 +6,12 @@ import (
 
 // Main point
 func main() {
-	// data, err := GetContent("/home/peekmo/XSLgen/test.xslg")
-	// if err != nil {
-	// 	panic(err)
-	// }
+	data, err := GetContent("/home/peekmo/XSLgen/test.xslg")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(Parse(data))
 
 	t := Tag{
 		"tif",

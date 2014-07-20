@@ -2,8 +2,32 @@ package main
 
 import (
 	"bufio"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
+)
+
+const (
+	EOF        int = -1
+	IDENTIFIER     = -2
+	NUMBER         = -3
+)
+
+const (
+	DECLARATION_XML        = -100
+	DECLARATION_ATTRIBUTES = -101
+	STRING                 = -102
+)
+
+type Stack struct {
+	str  string
+	kind int
+}
+
+var (
+	stacktrace []Stack // Actions in progress
+	taglist    *TagList
 )
 
 // Reads the file content of the given file
@@ -31,4 +55,58 @@ func GetContent(path string) (content []string, err error) {
 	}
 
 	return data, nil
+}
+
+// Parse the given array to generate the XSL
+func Parse(content []string) (xsl string, err error) {
+	var strxsl string
+	var index int = 0
+
+	for number, line := range content {
+		if line == "" {
+			continue
+		}
+
+		if len(stacktrace) == 0 {
+			if strings.Index(line, "@xml") != 0 {
+				return strxsl, gerror(number, "An XSLgen must start with @xml tag")
+			}
+
+			index = 4
+			stacktrace = append(stacktrace, Stack{"", DECLARATION_XML})
+		}
+
+		var lastStack *Stack
+		for ; index < len(line); index++ {
+			c := line[index]
+			lastStack = &stacktrace[len(stacktrace)-1]
+
+			// If string, adds the char to the string
+			if lastStack.kind == STRING && c != '"' {
+				lastStack.str += string(c)
+			} else if lastStack.kind == DECLARATION_ATTRIBUTES && c != ']' {
+				lastStack.str += string(c)
+			} else {
+				if c == '[' {
+					stacktrace = append(stacktrace, Stack{"{", DECLARATION_ATTRIBUTES})
+				} else if c == ']' {
+
+					if lastStack.kind != DECLARATION_ATTRIBUTES {
+						return strxsl, gerror(number, "Unexpected token ']'")
+					}
+
+					lastStack.str += "}"
+				}
+			}
+		}
+
+		fmt.Println(stacktrace)
+	}
+
+	return strxsl, nil
+}
+
+// Returns an error message
+func gerror(line int, message string) error {
+	return errors.New(fmt.Sprintf("[Line %d] %s", line, message))
 }
