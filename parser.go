@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -61,6 +62,7 @@ func GetContent(path string) (content []string, err error) {
 func Parse(content []string) (xsl string, err error) {
 	var strxsl string
 	var index int = 0
+	var current *Tag
 
 	for number, line := range content {
 		if line == "" {
@@ -74,6 +76,7 @@ func Parse(content []string) (xsl string, err error) {
 
 			index = 4
 			stacktrace = append(stacktrace, Stack{"", DECLARATION_XML})
+			current = &Tag{name: "?xml"}
 		}
 
 		var lastStack *Stack
@@ -84,8 +87,12 @@ func Parse(content []string) (xsl string, err error) {
 			// If string, adds the char to the string
 			if lastStack.kind == STRING && c != '"' {
 				lastStack.str += string(c)
+
+				// Attribute
 			} else if lastStack.kind == DECLARATION_ATTRIBUTES && c != ']' {
 				lastStack.str += string(c)
+
+				// Otherwise
 			} else {
 				if c == '[' {
 					stacktrace = append(stacktrace, Stack{"{", DECLARATION_ATTRIBUTES})
@@ -96,14 +103,19 @@ func Parse(content []string) (xsl string, err error) {
 					}
 
 					lastStack.str += "}"
+					if err = json.Unmarshal([]byte(lastStack.str), &current.attributes); err != nil {
+						return strxsl, gerror(number, err.Error())
+					}
+
+					stacktrace = stacktrace[0 : len(stacktrace)-1]
 				}
 			}
 		}
-
-		fmt.Println(stacktrace)
 	}
 
-	return strxsl, nil
+	taglist.values = append(taglist.values, current)
+
+	return taglist.Print(0), nil
 }
 
 // Returns an error message

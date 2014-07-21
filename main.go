@@ -14,6 +14,7 @@ func main() {
 	fmt.Println(Parse(data))
 
 	t := Tag{
+		nil,
 		"tif",
 		"OI",
 		map[string]string{"id": "ID"},
@@ -21,6 +22,7 @@ func main() {
 	}
 
 	t3 := Tag{
+		nil,
 		"tif",
 		"Default",
 		map[string]string{"id": "qdfsd", "attr": "okok"},
@@ -28,6 +30,7 @@ func main() {
 	}
 
 	t2 := Tag{
+		nil,
 		"tif",
 		"Classification",
 		map[string]string{"id": "ID"},

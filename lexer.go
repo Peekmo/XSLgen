@@ -16,10 +16,11 @@ type Value interface {
 
 // Tags metadata
 type Tag struct {
+	parent     *TagList
 	namespace  string
 	name       string
 	attributes map[string]string
-	value      Value
+	children   Value
 }
 
 // Contains a list of tags
@@ -54,17 +55,17 @@ func (this *TagList) Print(depth int) string {
 			strtag += " " + key + "=\"" + value + "\""
 		}
 
-		if tag.value == nil {
+		if tag.children == nil {
 			strtag += "/>\n"
 		} else {
 			strtag += ">"
 
-			val := strings.Split(reflect.TypeOf(tag.value).String(), ".")
+			val := strings.Split(reflect.TypeOf(tag.children).String(), ".")
 			if val[1] == "TagList" {
 				strtag += "\n"
 			}
 
-			strtag += tag.value.Print(depth + 1)
+			strtag += tag.children.Print(depth + 1)
 
 			// Start tag
 			strtag += "</"
