@@ -67,8 +67,8 @@ func GetContent(path string) (content []string, err error) {
 
 // Parse the given array to generate the XSL
 func Parse(content []string) (xsl string, err error) {
-	var strxsl string
 	var index int = 0
+	var strxsl string
 	var current *Tag
 	var lastStack, tempLast *Stack
 	stacktrace = &Stacktrace{}
@@ -76,6 +76,7 @@ func Parse(content []string) (xsl string, err error) {
 	taglist = &TagList{values: []*Tag{}}
 
 	for number, line := range content {
+		index = 0
 		if line == "" {
 			continue
 		}
@@ -156,7 +157,7 @@ func Parse(content []string) (xsl string, err error) {
 
 // Returns an error message
 func gerror(line int, message string) error {
-	return errors.New(fmt.Sprintf("[Line %d] %s", line, message))
+	return errors.New(fmt.Sprintf("[Line %d] %s", line+1, message))
 }
 
 // RemoveLastElement removes the last element of the stackstrace
@@ -174,7 +175,7 @@ func (this *Stacktrace) Append(stack Stack) *Stack {
 	return &this.stacktrace[len(this.stacktrace)-1]
 }
 
-// Returns stacktrace size
+// Size returns stacktrace size
 func (this *Stacktrace) Size() int {
 	return len(this.stacktrace)
 }
