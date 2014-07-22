@@ -25,7 +25,7 @@ type Tag struct {
 
 // Contains a list of tags
 type TagList struct {
-	values []Tag
+	values []*Tag
 }
 
 // Print Prints String's value

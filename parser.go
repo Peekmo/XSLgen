@@ -16,9 +16,12 @@ const (
 )
 
 const (
-	DECLARATION_XML        = -100
-	DECLARATION_ATTRIBUTES = -101
-	STRING                 = -102
+	DECLARATION_XML              = -100
+	DECLARATION_ATTRIBUTES       = -101
+	DECLARATION_ATTRIBUTES_KEY   = -102
+	DECLARATION_ATTRIBUTES_VALUE = -103
+
+	STRING = -150
 )
 
 type Stack struct {
@@ -63,6 +66,9 @@ func Parse(content []string) (xsl string, err error) {
 	var strxsl string
 	var index int = 0
 	var current *Tag
+	var lastStack, tempLast *Stack
+
+	taglist = &TagList{values: []*Tag{}}
 
 	for number, line := range content {
 		if line == "" {
@@ -75,11 +81,10 @@ func Parse(content []string) (xsl string, err error) {
 			}
 
 			index = 4
-			stacktrace = append(stacktrace, Stack{"", DECLARATION_XML})
+			stacktrace, lastStack = appendStack(stacktrace, &Stack{"", DECLARATION_XML})
 			current = &Tag{name: "?xml"}
 		}
 
-		var lastStack *Stack
 		for ; index < len(line); index++ {
 			c := line[index]
 			lastStack = &stacktrace[len(stacktrace)-1]
@@ -90,15 +95,42 @@ func Parse(content []string) (xsl string, err error) {
 
 				// Attribute
 			} else if lastStack.kind == DECLARATION_ATTRIBUTES && c != ']' {
+				if c != ' ' {
+					stacktrace, lastStack = appendStack(stacktrace, &Stack{"\"" + string(c), DECLARATION_ATTRIBUTES_KEY})
+				}
+
+				// Attribute key
+			} else if lastStack.kind == DECLARATION_ATTRIBUTES_KEY {
+				// Double points : separator key:value
+				if c == ':' {
+					lastStack.str += "\":"
+					stacktrace, tempLast, lastStack = removeLastStacktraceElement(stacktrace)
+					lastStack.str += tempLast.str
+
+					stacktrace, lastStack = appendStack(stacktrace, &Stack{"", DECLARATION_ATTRIBUTES_VALUE})
+				} else {
+					lastStack.str += string(c)
+				}
+
+				// Attribute value
+			} else if lastStack.kind == DECLARATION_ATTRIBUTES_VALUE && c != ']' {
 				lastStack.str += string(c)
+
+				if c == ',' {
+					stacktrace, tempLast, lastStack = removeLastStacktraceElement(stacktrace)
+					lastStack.str += tempLast.str
+				}
 
 				// Otherwise
 			} else {
 				if c == '[' {
-					stacktrace = append(stacktrace, Stack{"{", DECLARATION_ATTRIBUTES})
+					stacktrace, lastStack = appendStack(stacktrace, &Stack{"{", DECLARATION_ATTRIBUTES})
 				} else if c == ']' {
 
-					if lastStack.kind != DECLARATION_ATTRIBUTES {
+					if lastStack.kind == DECLARATION_ATTRIBUTES_VALUE {
+						stacktrace, tempLast, lastStack = removeLastStacktraceElement(stacktrace)
+						lastStack.str += tempLast.str
+					} else if lastStack.kind != DECLARATION_ATTRIBUTES {
 						return strxsl, gerror(number, "Unexpected token ']'")
 					}
 
@@ -107,7 +139,7 @@ func Parse(content []string) (xsl string, err error) {
 						return strxsl, gerror(number, err.Error())
 					}
 
-					stacktrace = stacktrace[0 : len(stacktrace)-1]
+					stacktrace, _, _ = removeLastStacktraceElement(stacktrace)
 				}
 			}
 		}
@@ -121,4 +153,15 @@ func Parse(content []string) (xsl string, err error) {
 // Returns an error message
 func gerror(line int, message string) error {
 	return errors.New(fmt.Sprintf("[Line %d] %s", line, message))
+}
+
+// Removes the last element from a Stack array & returns it
+func removeLastStacktraceElement(stacktrace []Stack) (trace []Stack, tempLast *Stack, lastStack *Stack) {
+	var last = &stacktrace[len(stacktrace)-1]
+	return stacktrace[0 : len(stacktrace)-1], last, &stacktrace[len(stacktrace)-2]
+}
+
+func appendStack(stacktrace []Stack, stack *Stack) (trace []Stack, lastStack *Stack) {
+	stacktrace = append(stacktrace, *stack)
+	return stacktrace, stack
 }
