@@ -29,8 +29,12 @@ type Stack struct {
 	kind int
 }
 
+type Stacktrace struct {
+	stacktrace []Stack
+}
+
 var (
-	stacktrace []Stack // Actions in progress
+	stacktrace *Stacktrace // Actions in progress
 	taglist    *TagList
 )
 
@@ -67,6 +71,7 @@ func Parse(content []string) (xsl string, err error) {
 	var index int = 0
 	var current *Tag
 	var lastStack, tempLast *Stack
+	stacktrace = &Stacktrace{}
 
 	taglist = &TagList{values: []*Tag{}}
 
@@ -75,19 +80,18 @@ func Parse(content []string) (xsl string, err error) {
 			continue
 		}
 
-		if len(stacktrace) == 0 {
+		if stacktrace.Size() == 0 {
 			if strings.Index(line, "@xml") != 0 {
 				return strxsl, gerror(number, "An XSLgen must start with @xml tag")
 			}
 
 			index = 4
-			stacktrace, lastStack = appendStack(stacktrace, &Stack{"", DECLARATION_XML})
+			lastStack = stacktrace.Append(Stack{"", DECLARATION_XML})
 			current = &Tag{name: "?xml"}
 		}
 
 		for ; index < len(line); index++ {
 			c := line[index]
-			lastStack = &stacktrace[len(stacktrace)-1]
 
 			// If string, adds the char to the string
 			if lastStack.kind == STRING && c != '"' {
@@ -96,7 +100,7 @@ func Parse(content []string) (xsl string, err error) {
 				// Attribute
 			} else if lastStack.kind == DECLARATION_ATTRIBUTES && c != ']' {
 				if c != ' ' {
-					stacktrace, lastStack = appendStack(stacktrace, &Stack{"\"" + string(c), DECLARATION_ATTRIBUTES_KEY})
+					lastStack = stacktrace.Append(Stack{"\"" + string(c), DECLARATION_ATTRIBUTES_KEY})
 				}
 
 				// Attribute key
@@ -104,10 +108,10 @@ func Parse(content []string) (xsl string, err error) {
 				// Double points : separator key:value
 				if c == ':' {
 					lastStack.str += "\":"
-					stacktrace, tempLast, lastStack = removeLastStacktraceElement(stacktrace)
+					tempLast, lastStack = stacktrace.RemoveLastElement()
 					lastStack.str += tempLast.str
 
-					stacktrace, lastStack = appendStack(stacktrace, &Stack{"", DECLARATION_ATTRIBUTES_VALUE})
+					lastStack = stacktrace.Append(Stack{"", DECLARATION_ATTRIBUTES_VALUE})
 				} else {
 					lastStack.str += string(c)
 				}
@@ -117,18 +121,18 @@ func Parse(content []string) (xsl string, err error) {
 				lastStack.str += string(c)
 
 				if c == ',' {
-					stacktrace, tempLast, lastStack = removeLastStacktraceElement(stacktrace)
+					tempLast, lastStack = stacktrace.RemoveLastElement()
 					lastStack.str += tempLast.str
 				}
 
 				// Otherwise
 			} else {
 				if c == '[' {
-					stacktrace, lastStack = appendStack(stacktrace, &Stack{"{", DECLARATION_ATTRIBUTES})
+					lastStack = stacktrace.Append(Stack{"{", DECLARATION_ATTRIBUTES})
 				} else if c == ']' {
 
 					if lastStack.kind == DECLARATION_ATTRIBUTES_VALUE {
-						stacktrace, tempLast, lastStack = removeLastStacktraceElement(stacktrace)
+						tempLast, lastStack = stacktrace.RemoveLastElement()
 						lastStack.str += tempLast.str
 					} else if lastStack.kind != DECLARATION_ATTRIBUTES {
 						return strxsl, gerror(number, "Unexpected token ']'")
@@ -139,7 +143,7 @@ func Parse(content []string) (xsl string, err error) {
 						return strxsl, gerror(number, err.Error())
 					}
 
-					stacktrace, _, _ = removeLastStacktraceElement(stacktrace)
+					_, _ = stacktrace.RemoveLastElement()
 				}
 			}
 		}
@@ -155,13 +159,22 @@ func gerror(line int, message string) error {
 	return errors.New(fmt.Sprintf("[Line %d] %s", line, message))
 }
 
-// Removes the last element from a Stack array & returns it
-func removeLastStacktraceElement(stacktrace []Stack) (trace []Stack, tempLast *Stack, lastStack *Stack) {
-	var last = &stacktrace[len(stacktrace)-1]
-	return stacktrace[0 : len(stacktrace)-1], last, &stacktrace[len(stacktrace)-2]
+// RemoveLastElement removes the last element of the stackstrace
+// Returns the removed element & the current last element
+func (this *Stacktrace) RemoveLastElement() (tmpLast *Stack, currentLast *Stack) {
+	var last = &this.stacktrace[len(this.stacktrace)-1]
+
+	this.stacktrace = this.stacktrace[0 : len(this.stacktrace)-1]
+	return last, &this.stacktrace[len(this.stacktrace)-1]
 }
 
-func appendStack(stacktrace []Stack, stack *Stack) (trace []Stack, lastStack *Stack) {
-	stacktrace = append(stacktrace, *stack)
-	return stacktrace, stack
+// Append appends an elements to the stacktrace and returns it
+func (this *Stacktrace) Append(stack Stack) *Stack {
+	this.stacktrace = append(this.stacktrace, stack)
+	return &this.stacktrace[len(this.stacktrace)-1]
+}
+
+// Returns stacktrace size
+func (this *Stacktrace) Size() int {
+	return len(this.stacktrace)
 }
