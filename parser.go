@@ -16,7 +16,7 @@ const (
 )
 
 const (
-	DECLARATION_XML              = -100
+	DECLARATION_TAG              = -100
 	DECLARATION_ATTRIBUTES       = -101
 	DECLARATION_ATTRIBUTES_KEY   = -102
 	DECLARATION_ATTRIBUTES_VALUE = -103
@@ -87,8 +87,8 @@ func Parse(content []string) (xsl string, err error) {
 			}
 
 			index = 4
-			lastStack = stacktrace.Append(Stack{"", DECLARATION_XML})
-			current = &Tag{name: "?xml"}
+			lastStack = stacktrace.Append(Stack{"", DECLARATION_TAG})
+			current = &Tag{parent: taglist, name: "?xml"}
 		}
 
 		for ; index < len(line); index++ {
@@ -97,6 +97,18 @@ func Parse(content []string) (xsl string, err error) {
 			// If string, adds the char to the string
 			if lastStack.kind == STRING && c != '"' {
 				lastStack.str += string(c)
+
+				// Tag declaration & name
+			} else if lastStack.kind == DECLARATION_TAG && c != '[' {
+				if c == '@' {
+					current.parent.values = append(current.parent.values, current)
+					current = &Tag{parent: current.parent, name: ""}
+					_, _ = stacktrace.RemoveLastElement()
+
+					lastStack = stacktrace.Append(Stack{"", DECLARATION_TAG})
+				} else if c != ' ' {
+					current.name += string(c)
+				}
 
 				// Attribute
 			} else if lastStack.kind == DECLARATION_ATTRIBUTES && c != ']' {
@@ -144,7 +156,7 @@ func Parse(content []string) (xsl string, err error) {
 						return strxsl, gerror(number, err.Error())
 					}
 
-					_, _ = stacktrace.RemoveLastElement()
+					_, lastStack = stacktrace.RemoveLastElement()
 				}
 			}
 		}
@@ -166,7 +178,12 @@ func (this *Stacktrace) RemoveLastElement() (tmpLast *Stack, currentLast *Stack)
 	var last = &this.stacktrace[len(this.stacktrace)-1]
 
 	this.stacktrace = this.stacktrace[0 : len(this.stacktrace)-1]
-	return last, &this.stacktrace[len(this.stacktrace)-1]
+
+	if len(this.stacktrace) > 0 {
+		return last, &this.stacktrace[len(this.stacktrace)-1]
+	}
+
+	return last, nil
 }
 
 // Append appends an elements to the stacktrace and returns it
