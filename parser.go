@@ -10,19 +10,13 @@ import (
 )
 
 const (
-	EOF        int = -1
-	IDENTIFIER     = -2
-	NUMBER         = -3
-)
-
-const (
 	DECLARATION_TAG              = -100
 	DECLARATION_ATTRIBUTES       = -101
 	DECLARATION_ATTRIBUTES_KEY   = -102
 	DECLARATION_ATTRIBUTES_VALUE = -103
 	DECLARATION_TAG_CONTENT      = -104
-
-	STRING = -150
+	DECLARATION_STRING           = -105
+	STRING_CONTENT               = -106
 )
 
 type Stack struct {
@@ -95,25 +89,39 @@ func Parse(content []string) (xsl string, err error) {
 		for ; index < len(line); index++ {
 			c := line[index]
 
+			if c == '#' && lastStack.kind != STRING_CONTENT && lastStack.kind != DECLARATION_ATTRIBUTES_VALUE {
+				break
+			}
+
 			// If string, adds the char to the string
-			if lastStack.kind == STRING && c != '"' {
-				lastStack.str += string(c)
+			if lastStack.kind == STRING_CONTENT {
+				if c != '"' {
+					lastStack.str += string(c)
+				} else {
+					current.children = String(lastStack.str)
+					current.appended = true
+					current.parent.values = append(current.parent.values, current)
+
+					_, _ = stacktrace.RemoveLastElement()         // End string_content
+					_, lastStack = stacktrace.RemoveLastElement() // End declaration_string
+				}
+
+				// If string declaration, adds the char to the string
+			} else if lastStack.kind == DECLARATION_STRING && (c == ' ' || c == '"') {
+				if c == '"' {
+					lastStack = stacktrace.Append(Stack{"", STRING_CONTENT})
+				}
 
 				// Tag declaration & name
 			} else if (lastStack.kind == DECLARATION_TAG && c != '[') || (lastStack.kind == DECLARATION_TAG_CONTENT && c == '@' || c == ' ' || c == '&') {
 				// New tag
 				if c == '@' {
-					if current == nil {
-						current = &Tag{parent: taglist, name: "", appended: false}
-
-					} else {
-						if current.appended == false {
-							current.appended = true
-							current.parent.values = append(current.parent.values, current)
-						}
-
-						current = &Tag{parent: current.parent, name: "", appended: false}
+					if current != nil && current.appended == false {
+						current.appended = true
+						current.parent.values = append(current.parent.values, current)
 					}
+
+					current = &Tag{parent: taglist, name: "", appended: false, namespace: "xsl"}
 
 					if lastStack.kind == DECLARATION_TAG {
 						_, _ = stacktrace.RemoveLastElement()
@@ -144,6 +152,10 @@ func Parse(content []string) (xsl string, err error) {
 
 					_, _ = stacktrace.RemoveLastElement()         // End tag
 					_, lastStack = stacktrace.RemoveLastElement() // End tag content
+
+					// String
+				} else if c == ':' {
+					lastStack = stacktrace.Append(Stack{"", DECLARATION_STRING})
 
 					// Othewise
 				} else if c != ' ' {

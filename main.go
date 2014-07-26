@@ -12,38 +12,4 @@ func main() {
 	}
 
 	fmt.Println(Parse(data))
-
-	// t := Tag{
-	// 	nil,
-	// 	"tif",
-	// 	"OI",
-	// 	map[string]string{"id": "ID"},
-	// 	String("salut"),
-	// }
-
-	// t3 := Tag{
-	// 	nil,
-	// 	"tif",
-	// 	"Default",
-	// 	map[string]string{"id": "qdfsd", "attr": "okok"},
-	// 	String("salut"),
-	// }
-
-	// t2 := Tag{
-	// 	nil,
-	// 	"tif",
-	// 	"Classification",
-	// 	map[string]string{"id": "ID"},
-	// 	&TagList{
-	// 		nil,
-	// 		[]*Tag{&t, &t3},
-	// 	},
-	// }
-
-	// list := TagList{
-	// 	nil,
-	// 	[]*Tag{&t, &t2},
-	// }
-
-	// fmt.Println(list.Print(0))
 }
