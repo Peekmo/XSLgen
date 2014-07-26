@@ -35,12 +35,14 @@ func main() {
 	// 	"Classification",
 	// 	map[string]string{"id": "ID"},
 	// 	&TagList{
-	// 		[]Tag{t, t3},
+	// 		nil,
+	// 		[]*Tag{&t, &t3},
 	// 	},
 	// }
 
 	// list := TagList{
-	// 	[]Tag{t, t2},
+	// 	nil,
+	// 	[]*Tag{&t, &t2},
 	// }
 
 	// fmt.Println(list.Print(0))

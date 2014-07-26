@@ -20,6 +20,7 @@ const (
 	DECLARATION_ATTRIBUTES       = -101
 	DECLARATION_ATTRIBUTES_KEY   = -102
 	DECLARATION_ATTRIBUTES_VALUE = -103
+	DECLARATION_TAG_CONTENT      = -104
 
 	STRING = -150
 )
@@ -82,13 +83,13 @@ func Parse(content []string) (xsl string, err error) {
 		}
 
 		if stacktrace.Size() == 0 {
-			if strings.Index(line, "@xml") != 0 {
+			if strings.Index(line, "@?xml") != 0 {
 				return strxsl, gerror(number, "An XSLgen must start with @xml tag")
 			}
 
-			index = 4
+			index = 5
 			lastStack = stacktrace.Append(Stack{"", DECLARATION_TAG})
-			current = &Tag{parent: taglist, name: "?xml"}
+			current = &Tag{parent: taglist, name: "?xml", appended: false}
 		}
 
 		for ; index < len(line); index++ {
@@ -99,13 +100,52 @@ func Parse(content []string) (xsl string, err error) {
 				lastStack.str += string(c)
 
 				// Tag declaration & name
-			} else if lastStack.kind == DECLARATION_TAG && c != '[' {
+			} else if (lastStack.kind == DECLARATION_TAG && c != '[') || (lastStack.kind == DECLARATION_TAG_CONTENT && c == '@' || c == ' ' || c == '&') {
+				// New tag
 				if c == '@' {
-					current.parent.values = append(current.parent.values, current)
-					current = &Tag{parent: current.parent, name: ""}
-					_, _ = stacktrace.RemoveLastElement()
+					if current == nil {
+						current = &Tag{parent: taglist, name: "", appended: false}
+
+					} else {
+						if current.appended == false {
+							current.appended = true
+							current.parent.values = append(current.parent.values, current)
+						}
+
+						current = &Tag{parent: current.parent, name: "", appended: false}
+					}
+
+					if lastStack.kind == DECLARATION_TAG {
+						_, _ = stacktrace.RemoveLastElement()
+					}
 
 					lastStack = stacktrace.Append(Stack{"", DECLARATION_TAG})
+
+					// Start block
+				} else if c == '{' {
+					current.appended = true
+					current.parent.values = append(current.parent.values, current)
+					taglist = &TagList{parent: taglist, values: []*Tag{}}
+					current = nil
+
+					lastStack = stacktrace.Append(Stack{"", DECLARATION_TAG_CONTENT})
+
+					// End block
+				} else if c == '}' {
+					if current.appended == false {
+						current.appended = true
+						current.parent.values = append(current.parent.values, current)
+					}
+
+					taglist.parent.values[len(taglist.parent.values)-1].children = taglist
+
+					taglist = taglist.parent
+					current = taglist.values[len(taglist.values)-1]
+
+					_, _ = stacktrace.RemoveLastElement()         // End tag
+					_, lastStack = stacktrace.RemoveLastElement() // End tag content
+
+					// Othewise
 				} else if c != ' ' {
 					current.name += string(c)
 				}
@@ -157,12 +197,16 @@ func Parse(content []string) (xsl string, err error) {
 					}
 
 					_, lastStack = stacktrace.RemoveLastElement()
+				} else {
+					return strxsl, gerror(number, fmt.Sprintf("Unexpected token %c", c))
 				}
 			}
 		}
 	}
 
-	taglist.values = append(taglist.values, current)
+	if current != nil && current.appended == false {
+		taglist.values = append(taglist.values, current)
+	}
 
 	return taglist.Print(0), nil
 }

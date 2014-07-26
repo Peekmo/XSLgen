@@ -21,10 +21,12 @@ type Tag struct {
 	name       string
 	attributes map[string]string
 	children   Value
+	appended   bool
 }
 
 // Contains a list of tags
 type TagList struct {
+	parent *TagList
 	values []*Tag
 }
 
@@ -39,6 +41,10 @@ func (this *TagList) Print(depth int) string {
 	var strtag string
 
 	for _, tag := range this.values {
+		if tag.name == "" {
+			continue
+		}
+
 		// Start tag
 		strtag += s + "<"
 
@@ -68,6 +74,9 @@ func (this *TagList) Print(depth int) string {
 			strtag += tag.children.Print(depth + 1)
 
 			// Start tag
+			if val[1] == "TagList" {
+				strtag += s
+			}
 			strtag += "</"
 
 			// Namespace (if any)
