@@ -10,13 +10,14 @@ import (
 )
 
 const (
-	DECLARATION_TAG              = -100
-	DECLARATION_ATTRIBUTES       = -101
-	DECLARATION_ATTRIBUTES_KEY   = -102
-	DECLARATION_ATTRIBUTES_VALUE = -103
-	DECLARATION_TAG_CONTENT      = -104
-	DECLARATION_STRING           = -105
-	STRING_CONTENT               = -106
+	DECLARATION_TAG = iota
+	DECLARATION_ATTRIBUTES
+	DECLARATION_ATTRIBUTES_KEY
+	DECLARATION_ATTRIBUTES_VALUE
+	DECLARATION_TAG_CONTENT
+	DECLARATION_NAMESPACE
+	DECLARATION_STRING
+	STRING_CONTENT
 )
 
 type Stack struct {
@@ -89,6 +90,7 @@ func Parse(content []string) (xsl string, err error) {
 		for ; index < len(line); index++ {
 			c := line[index]
 
+			// Comment
 			if c == '#' && lastStack.kind != STRING_CONTENT && lastStack.kind != DECLARATION_ATTRIBUTES_VALUE {
 				break
 			}
@@ -115,19 +117,23 @@ func Parse(content []string) (xsl string, err error) {
 				// Tag declaration & name
 			} else if (lastStack.kind == DECLARATION_TAG && c != '[') || (lastStack.kind == DECLARATION_TAG_CONTENT && c == '@' || c == ' ' || c == '&') {
 				// New tag
-				if c == '@' {
+				if c == '@' || c == '&' {
 					if current != nil && current.appended == false {
 						current.appended = true
 						current.parent.values = append(current.parent.values, current)
 					}
 
-					current = &Tag{parent: taglist, name: "", appended: false, namespace: "xsl"}
-
 					if lastStack.kind == DECLARATION_TAG {
 						_, _ = stacktrace.RemoveLastElement()
 					}
 
-					lastStack = stacktrace.Append(Stack{"", DECLARATION_TAG})
+					if c == '@' {
+						current = &Tag{parent: taglist, name: "", appended: false, namespace: "xsl"}
+						lastStack = stacktrace.Append(Stack{"", DECLARATION_TAG})
+					} else {
+						current = &Tag{parent: taglist, name: "", appended: false, namespace: ""}
+						lastStack = stacktrace.Append(Stack{"", DECLARATION_NAMESPACE})
+					}
 
 					// Start block
 				} else if c == '{' {
@@ -162,7 +168,16 @@ func Parse(content []string) (xsl string, err error) {
 					current.name += string(c)
 				}
 
-				// Attribute
+				// Namespace
+			} else if lastStack.kind == DECLARATION_NAMESPACE {
+				if c == '.' {
+					_, _ = stacktrace.RemoveLastElement()
+					lastStack = stacktrace.Append(Stack{"", DECLARATION_TAG})
+				} else {
+					current.namespace += string(c)
+				}
+
+				// Attribute key
 			} else if lastStack.kind == DECLARATION_ATTRIBUTES && c != ']' {
 				if c != ' ' {
 					lastStack = stacktrace.Append(Stack{"\"" + string(c), DECLARATION_ATTRIBUTES_KEY})
